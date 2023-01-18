@@ -73,6 +73,7 @@ func init() {
 	orm.RegisterDataBase("default", dbDriver, dbUser+":"+dbPass+"@/"+dbName+"?charset=utf8")
 }
 
+// fetch all
 func getAllUsers(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "All Users Endpoint Hit \n")
 	o := orm.NewOrm()
@@ -105,6 +106,7 @@ func getAllposts(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(posts)
 }
 
+// Create
 func createUser(w http.ResponseWriter, r *http.Request) {
 	o := orm.NewOrm()
 
@@ -184,6 +186,7 @@ func getSinglePost(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(post)
 }
 
+// Update
 func updateUser(w http.ResponseWriter, r *http.Request) {
 	o := orm.NewOrm()
 
@@ -229,18 +232,42 @@ func updatePost(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(post)
 }
 
+// Delete
 func deleteUser(w http.ResponseWriter, r *http.Request) {
 	o := orm.NewOrm()
 
 	var user User
-	vars := mux.Vars(r)
-	user.UserName = vars["name"]
+	params := mux.Vars(r)
+	userId := params["id"]
+
+	if err := o.QueryTable("user").Filter("Id", userId).One(&user); err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
 
 	num, err := o.Delete(&user)
-	fmt.Println("num:", num, "err: ", err)
+	fmt.Println("Affected rows: ", num, "err: ", err)
 
 	fmt.Fprintf(w, "User Sucessfully Deleted \n")
 	json.NewEncoder(w).Encode(user)
+}
+func deletePost(w http.ResponseWriter, r *http.Request) {
+	o := orm.NewOrm()
+
+	var post Post
+	params := mux.Vars(r)
+	postId := params["id"]
+
+	if err := o.QueryTable("post").Filter("Id", postId).One(&post); err != nil {
+		http.Error(w, "Post not found", http.StatusNotFound)
+		return
+	}
+
+	num, err := o.Delete(&post)
+	fmt.Println("Affected rows: ", num, "err: ", err)
+
+	fmt.Fprintf(w, "Post Sucessfully Deleted \n")
+	json.NewEncoder(w).Encode(post)
 }
 
 func hello(w http.ResponseWriter, r *http.Request) {
@@ -257,12 +284,10 @@ func handleRequests() {
 
 	router.HandleFunc("/user", createUser).Methods("POST")
 	router.HandleFunc("/post", createPost).Methods("POST")
-	// router.HandleFunc("/user/{name}/{email}/{password}", createUser).Methods("POST")
 
-	router.HandleFunc("/user/{name}", deleteUser).Methods("DELETE")
-	// router.HandleFunc("/user/{id}", deletePost).Methods("DELETE")
+	router.HandleFunc("/user/{id}", deleteUser).Methods("DELETE")
+	router.HandleFunc("/post/{id}", deletePost).Methods("DELETE")
 
-	// router.HandleFunc("/user/{name}/{email}", updateUser).Methods("PUT")
 	router.HandleFunc("/user/{id}", updateUser).Methods("PUT")
 	router.HandleFunc("/post/{id}", updatePost).Methods("PUT")
 
