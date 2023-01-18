@@ -131,8 +131,16 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 func createPost(w http.ResponseWriter, r *http.Request) {
 	o := orm.NewOrm()
 
+	// var user User
+	// orm.NewOrm().QueryTable("user").Filter("id", 2).One(&user)
 	var user User
-	orm.NewOrm().QueryTable("user").Filter("id", 2).One(&user)
+	params := mux.Vars(r)
+	userId := params["id"]
+
+	if err := o.QueryTable("user").Filter("Id", userId).One(&user); err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
 
 	var post Post
 	_ = json.NewDecoder(r.Body).Decode(&post)
@@ -283,7 +291,7 @@ func handleRequests() {
 	router.HandleFunc("/post/{id}", getSinglePost).Methods("GET")
 
 	router.HandleFunc("/user", createUser).Methods("POST")
-	router.HandleFunc("/post", createPost).Methods("POST")
+	router.HandleFunc("/postbyuser/{id}", createPost).Methods("POST")
 
 	router.HandleFunc("/user/{id}", deleteUser).Methods("DELETE")
 	router.HandleFunc("/post/{id}", deletePost).Methods("DELETE")
