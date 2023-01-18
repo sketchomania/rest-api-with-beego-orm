@@ -153,14 +153,36 @@ func getSingleUser(w http.ResponseWriter, r *http.Request) {
 
 	var user User
 	vars := mux.Vars(r)
-	// user.Id = vars["id"]
-	user.UserName = vars["name"]
+	userId := vars["id"]
+	// user.UserName = vars["name"]
 
-	// user := User{Id: 1}
-	err := o.Read(&user)
-	fmt.Println("ERR: \n", err)
-	fmt.Fprintf(w, "Single User Endpoint Hit")
+	if err := o.QueryTable("user").Filter("Id", userId).One(&user); err != nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// err := o.Read(&user)
+	// fmt.Println("ERR: \n", err)
+	fmt.Fprintf(w, "Single User Endpoint Hit \n")
 	json.NewEncoder(w).Encode(user)
+}
+func getSinglePost(w http.ResponseWriter, r *http.Request) {
+	o := orm.NewOrm()
+
+	var post Post
+	params := mux.Vars(r)
+	postId := params["id"]
+	// fmt.Println("post: \n", post)
+
+	err := o.QueryTable("post").Filter("Id", postId).One(&post)
+	if err != nil {
+		http.Error(w, "Post not found", http.StatusNotFound)
+		return
+	}
+
+	fmt.Println("ERR: \n", err)
+	fmt.Fprintf(w, "Single Post Endpoint Hit \n")
+	json.NewEncoder(w).Encode(post)
 }
 
 func updateUser(w http.ResponseWriter, r *http.Request) {
@@ -205,7 +227,8 @@ func handleRequests() {
 	router.HandleFunc("/users", getAllUsers).Methods("GET")
 	router.HandleFunc("/posts", getAllposts).Methods("GET")
 	// router.HandleFunc("/user/{id}", getSingleUser).Methods("GET")
-	router.HandleFunc("/user/{name}", getSingleUser).Methods("GET")
+	router.HandleFunc("/user/{id}", getSingleUser).Methods("GET")
+	router.HandleFunc("/post/{id}", getSinglePost).Methods("GET")
 	router.HandleFunc("/user/", createUser).Methods("POST")
 	router.HandleFunc("/post/", createPost).Methods("POST")
 	// router.HandleFunc("/user/{name}/{email}/{password}", createUser).Methods("POST")
