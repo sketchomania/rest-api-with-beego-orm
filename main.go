@@ -19,6 +19,7 @@ type User struct {
 	Password  string    `orm:"column(Password);size(100)"`
 	CreatedAt time.Time `orm:"column(CreatedAt)"`
 	UpdatedAt time.Time `orm:"column(UpdatedAt)"`
+	Posts     []*Post   `orm:"reverse(many)"`
 	// AddressId   []*UserAddress    `orm:"reverse(many)"`
 }
 
@@ -33,29 +34,31 @@ type Post struct {
 	AuthorId  *User     `orm:"column(AuthorId);rel(fk)"`
 	CreatedAt time.Time `orm:"column(CreatedAt)"`
 	UpdatedAt time.Time `orm:"column(UpdatedAt)"`
+	Tags      []*Tag    `orm:"rel(m2m);rel_through(main.PostTags);column(Tag)"`
 }
 
 func (p *Post) TableName() string {
 	return "post"
 }
 
-// func (p *Post) Validate() error {
+type Tag struct {
+	Id    int     `orm:"column(Id);pk;auto"`
+	Name  string  `orm:"column(Name)"`
+	Posts []*Post `orm:"reverse(many);rel_through(main.PostTags);column(Post)"`
+}
 
-// 	if p.Title == "" {
-// 		return errors.New("Required Title")
-// 	}
-// 	if p.Content == "" {
-// 		return errors.New("Required Content")
-// 	}
-// 	if p.AuthorId < 1 {
-// 		return errors.New("Required Author")
-// 	}
-// 	return nil
-// }
+func (p *Tag) TableName() string {
+	return "tag"
+}
+
+type PostTags struct {
+	Id   int
+	Post *Post `orm:"column(Post);rel(fk)"`
+	Tag  *Tag  `orm:"column(Tag);rel(fk)"`
+}
 
 // 1t1
 // 1tm
-// type UserPosts struct {}
 // type UserAddress struct {
 // 	Id     int   `orm:"column(id);pk;"`
 // 	UserId *User `orm:"column(user_id);rel(fk);"`
@@ -68,7 +71,7 @@ func init() {
 	dbPass := "my-secret-pw"
 	dbName := "go_demo"
 
-	orm.RegisterModel(new(User), new(Post))
+	orm.RegisterModel(new(User), new(Post), new(Tag), new(PostTags))
 	orm.RegisterDriver(dbDriver, orm.DRMySQL)
 	orm.RegisterDataBase("default", dbDriver, dbUser+":"+dbPass+"@/"+dbName+"?charset=utf8")
 }
@@ -95,7 +98,7 @@ func getAllposts(w http.ResponseWriter, r *http.Request) {
 	o := orm.NewOrm()
 
 	var posts []Post
-	num, err := o.QueryTable(new(Post)).All(&posts)
+	num, err := o.QueryTable(new(Post)).RelatedSel().All(&posts)
 	if err == nil {
 		fmt.Printf("Result Nums: %d\n", num)
 		// for _, post := range posts {
@@ -131,30 +134,47 @@ func createUser(w http.ResponseWriter, r *http.Request) {
 func createPost(w http.ResponseWriter, r *http.Request) {
 	o := orm.NewOrm()
 
-	// var user User
-	// orm.NewOrm().QueryTable("user").Filter("id", 2).One(&user)
-	var user User
+	var author User
 	params := mux.Vars(r)
-	userId := params["id"]
+	authorId := params["id"]
 
-	if err := o.QueryTable("user").Filter("Id", userId).One(&user); err != nil {
+	if err := o.QueryTable("user").Filter("Id", authorId).One(&author); err != nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
-	var post Post
-	_ = json.NewDecoder(r.Body).Decode(&post)
-	// user type or user id only
-	post.AuthorId = &user
-	post.CreatedAt = time.Now()
-	post.UpdatedAt = time.Now()
-	// fmt.Println("post: ", post)
+	// tags
+	tag1 := &Tag{Name: "golang"}
+	o.Insert(tag1)
+	tag2 := &Tag{Name: "programming"}
+	o.Insert(tag2)
+	tag3 := &Tag{Name: "server"}
+	o.Insert(tag3)
+	tag4 := &Tag{Name: "api"}
+	o.Insert(tag4)
+	// o.Insert(tag1, tag2, tag3, tag4)
+	tags := []*Tag{tag1, tag2, tag3, tag4}
 
-	id, err := o.Insert(&post)
-	fmt.Printf("ID: %d, ERR: %v\n", id, err)
+	// post
+	var newPost Post
+	_ = json.NewDecoder(r.Body).Decode(&newPost)
+	newPost.AuthorId = &author
+	newPost.CreatedAt = time.Now()
+	newPost.UpdatedAt = time.Now()
+	// newPost insert
+	pid, err := o.Insert(&newPost)
+	fmt.Printf("ID: %d, ERR: %v\n", pid, err)
+
+	// insert into Post_tags
+	m2m := o.QueryM2M(&newPost, "Tags")
+	num, err4 := m2m.Add(tags)
+	// num, err := m2m.Add(tag1, tag2, tag3, tag4)
+	if err4 == nil {
+		fmt.Println("Added nums: ", num)
+	}
 
 	fmt.Fprintf(w, "New Post Sucessfully created 🎉")
-	json.NewEncoder(w).Encode(post)
+	json.NewEncoder(w).Encode(newPost)
 }
 
 // Single user and post
@@ -170,6 +190,8 @@ func getSingleUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
+	num, err := o.LoadRelated(&user, "Posts")
+	fmt.Println("(getSinglePost) ERR: ", err, "\nNum: ", num)
 
 	// err := o.Read(&user)
 	// fmt.Println("ERR: \n", err)
@@ -189,6 +211,9 @@ func getSinglePost(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Post not found", http.StatusNotFound)
 		return
 	}
+
+	num, err := o.LoadRelated(&post, "Tags")
+	fmt.Println("(getSinglePost) ERR: ", err, "\nNum: ", num)
 
 	fmt.Fprintf(w, "Single Post Endpoint Hit \n")
 	json.NewEncoder(w).Encode(post)
