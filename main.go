@@ -51,19 +51,12 @@ func (p *Tag) TableName() string {
 	return "tag"
 }
 
+// m2m
 type PostTags struct {
 	Id   int
 	Post *Post `orm:"column(Post);rel(fk)"`
 	Tag  *Tag  `orm:"column(Tag);rel(fk)"`
 }
-
-// 1t1
-// 1tm
-// type UserAddress struct {
-// 	Id     int   `orm:"column(id);pk;"`
-// 	UserId *User `orm:"column(user_id);rel(fk);"`
-// 	Line1  string
-// }
 
 func init() {
 	dbDriver := "mysql"
@@ -105,6 +98,10 @@ func getAllposts(w http.ResponseWriter, r *http.Request) {
 		// 	fmt.Println(post.Id, post.CreatedAt, post.Title, post.Content, post.AuthorId, post.UpdatedAt)
 		// }
 	}
+	// for _, item := range posts {
+	// 	num, err := o.LoadRelated(&item, "Tags")
+	// 	fmt.Println("(getSinglePost) ERR: ", err, "\n Item", item, "Num: ", num)
+	// }
 
 	json.NewEncoder(w).Encode(posts)
 }
